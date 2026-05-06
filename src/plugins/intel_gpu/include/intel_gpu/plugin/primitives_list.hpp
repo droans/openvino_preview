@@ -317,6 +317,7 @@ REGISTER_FACTORY(internal, LoraSubgraph);
 REGISTER_FACTORY(internal, LoraSubgraphFused);
 REGISTER_FACTORY(internal, VLSDPA);
 REGISTER_FACTORY(internal, MOECompressed);
+REGISTER_FACTORY(internal, MoERouterFused);
 REGISTER_FACTORY(internal, GatedDeltaNet);
 REGISTER_FACTORY(internal, PagedCausalConv1D);
 REGISTER_FACTORY(internal, GatherMatmulCompressed);

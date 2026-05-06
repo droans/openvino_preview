@@ -21,7 +21,7 @@
 #include "openvino/op/topk.hpp"
 #include "openvino/op/transpose.hpp"
 #include "openvino/op/unsqueeze.hpp"
-#include "plugin/transformations/fuse_moe_3gemm_compressed.hpp"
+#include "plugin/transformations/fuse_moe_router.hpp"
 #include "common_test_utils/node_builders/moe_builders.hpp"
 
 using namespace testing;
@@ -33,12 +33,12 @@ namespace intel_gpu {
 
 using namespace ov::test;
 
-using FuseMOE3GemmCompressedTestParams = std::tuple<MoERoutingType, bool>;
+using FuseMoERouterTestParams = std::tuple<MoERoutingType, bool>;
 
-class FuseMOE3GemmCompressedTest : public TransformationTestsF,
-                                   public ::testing::WithParamInterface<FuseMOE3GemmCompressedTestParams> {
+class FuseMoERouterTest : public TransformationTestsF,
+                          public ::testing::WithParamInterface<FuseMoERouterTestParams> {
 public:
-    static std::string get_test_case_name(const ::testing::TestParamInfo<FuseMOE3GemmCompressedTestParams>& info) {
+    static std::string get_test_case_name(const ::testing::TestParamInfo<FuseMoERouterTestParams>& info) {
         std::string name;
         switch (std::get<0>(info.param)) {
         case MoERoutingType::SOFTMAX: name = "Softmax"; break;
@@ -89,7 +89,7 @@ build_sigmoid_routing_for_fuse_test(const ov::Output<ov::Node>& routing_weights,
     return {unsqueeze_moe, convert_topk};
 }
 
-TEST_P(FuseMOE3GemmCompressedTest, CompareFunctions) {
+TEST_P(FuseMoERouterTest, CompareFunctions) {
     const auto& [routing_type, reshape_on_moe_input] = GetParam();
     {
         auto hidden_states = std::make_shared<ov::op::v0::Parameter>(element::f16, Shape{4, 8, 2048});
@@ -126,7 +126,7 @@ TEST_P(FuseMOE3GemmCompressedTest, CompareFunctions) {
                 wei_gate, scale_gate, zp_gate, wei_up, scale_up, zp_up, wei_down, scale_down, zp_down}, config);
         model = std::make_shared<ov::Model>(moe_compressed, ov::ParameterVector{hidden_states});
     }
-    manager.register_pass<FuseMOE3GemmCompressed>();
+    manager.register_pass<FuseMoERouter>();
     {
         auto hidden_states = std::make_shared<ov::op::v0::Parameter>(element::f16, Shape{4, 8, 2048});
         auto flatten_shape = op::v0::Constant::create(element::i32, Shape{2}, {32, 2048});
@@ -159,27 +159,22 @@ TEST_P(FuseMOE3GemmCompressedTest, CompareFunctions) {
         config.has_zp = true; config.hidden_size = 2048; config.inter_size = 768;
         config.num_expert = 128; config.group_size = 128; config.top_k = 8;
         config.out_type = ov::element::f16;
-        if (routing_type == MoERoutingType::SIGMOID_BIAS)
-            config.routing_type = ov::op::internal::MOECompressed::RoutingType::SIGMOID_BIAS;
 
-        ov::OutputVector args{hidden_states_reshape, router_node->output(0), router_node->output(1),
-            wei_gate, scale_gate, zp_gate, wei_up, scale_up, zp_up, wei_down, scale_down, zp_down};
-
-        std::shared_ptr<ov::Node> result = std::make_shared<ov::op::internal::MOECompressed>(args, config);
-        if (!reshape_on_moe_input) {
-            auto hidden_state_shape = std::make_shared<ov::op::v3::ShapeOf>(hidden_states);
-            result = std::make_shared<ov::op::v1::Reshape>(result, hidden_state_shape, false);
-        }
-        model_ref = std::make_shared<ov::Model>(result, ov::ParameterVector{hidden_states});
+        auto moe_input_0 = reshape_on_moe_input
+            ? ov::Output<ov::Node>(hidden_states_reshape) : ov::Output<ov::Node>(hidden_states);
+        auto moe_compressed = std::make_shared<ov::op::internal::MOECompressed>(
+            ov::OutputVector{moe_input_0, router_node->output(0), router_node->output(1),
+                wei_gate, scale_gate, zp_gate, wei_up, scale_up, zp_up, wei_down, scale_down, zp_down}, config);
+        model_ref = std::make_shared<ov::Model>(moe_compressed, ov::ParameterVector{hidden_states});
     }
 }
 
-INSTANTIATE_TEST_SUITE_P(smoke, FuseMOE3GemmCompressedTest,
+INSTANTIATE_TEST_SUITE_P(smoke, FuseMoERouterTest,
     ::testing::Combine(::testing::Values(MoERoutingType::SOFTMAX, MoERoutingType::SIGMOID_BIAS),
                        ::testing::Values(false, true)),
-    FuseMOE3GemmCompressedTest::get_test_case_name);
+    FuseMoERouterTest::get_test_case_name);
 
-TEST_F(TransformationTestsF, FuseMOE3GemmSharedExpertCompressedTest) {
+TEST_F(TransformationTestsF, FuseMoERouterSharedExpertSoftmaxTest) {
     {
         auto hidden_states = std::make_shared<ov::op::v0::Parameter>(element::f16, Shape{32, 2048});
         auto routers = op::v0::Constant::create(element::f16, Shape{2048, 128}, {0.2});
@@ -217,7 +212,7 @@ TEST_F(TransformationTestsF, FuseMOE3GemmSharedExpertCompressedTest) {
                 sh_wei_gate, sh_scale_gate, sh_zp_gate, sh_wei_up, sh_scale_up, sh_zp_up,
                 sh_wei_down, sh_scale_down, sh_zp_down, sh_gate_gate_wei}, config);
         model = std::make_shared<ov::Model>(moe_compressed, ov::ParameterVector{hidden_states});
-        manager.register_pass<FuseMOE3GemmCompressed>();
+        manager.register_pass<FuseMoERouter>();
     }
     {
         auto hidden_states = std::make_shared<ov::op::v0::Parameter>(element::f16, Shape{32, 2048});
@@ -262,7 +257,7 @@ TEST_F(TransformationTestsF, FuseMOE3GemmSharedExpertCompressedTest) {
     }
 }
 
-TEST_F(TransformationTestsF, FuseMOE3GemmSharedExpertCompressedSigmoidTest) {
+TEST_F(TransformationTestsF, FuseMoERouterSharedExpertSigmoidTest) {
     {
         auto hidden_states = std::make_shared<ov::op::v0::Parameter>(element::f16, Shape{32, 2048});
         auto routers = op::v0::Constant::create(element::f16, Shape{2048, 128}, {0.2});
@@ -300,7 +295,7 @@ TEST_F(TransformationTestsF, FuseMOE3GemmSharedExpertCompressedSigmoidTest) {
                 sh_wei_gate, sh_scale_gate, sh_zp_gate, sh_wei_up, sh_scale_up, sh_zp_up,
                 sh_wei_down, sh_scale_down, sh_zp_down, sh_gate_gate_wei}, config);
         model = std::make_shared<ov::Model>(moe_compressed, ov::ParameterVector{hidden_states});
-        manager.register_pass<FuseMOE3GemmCompressed>();
+        manager.register_pass<FuseMoERouter>();
     }
     {
         auto hidden_states = std::make_shared<ov::op::v0::Parameter>(element::f16, Shape{32, 2048});
@@ -340,7 +335,6 @@ TEST_F(TransformationTestsF, FuseMOE3GemmSharedExpertCompressedSigmoidTest) {
         config.has_zp = true; config.hidden_size = 2048; config.inter_size = 768;
         config.num_expert = 128; config.num_shared_expert = 1; config.group_size = 128;
         config.top_k = 8; config.out_type = ov::element::f16;
-        config.routing_type = ov::op::internal::MOECompressed::RoutingType::SIGMOID_BIAS;
         auto moe_fused = std::make_shared<ov::op::internal::MOECompressed>(
             ov::OutputVector{hidden_states, router_node->output(0), router_node->output(1),
                 wei_gate, scale_gate, zp_gate, wei_up, scale_up, zp_up, wei_down, scale_down, zp_down,
@@ -350,7 +344,7 @@ TEST_F(TransformationTestsF, FuseMOE3GemmSharedExpertCompressedSigmoidTest) {
     }
 }
 
-TEST_F(TransformationTestsF, FuseMOE3GemmCompressedTest1) {
+TEST_F(TransformationTestsF, FuseMoERouterDifferentConfigTest) {
     {
         auto hidden_states = std::make_shared<ov::op::v0::Parameter>(element::f16, Shape{4, 8, 2048});
         auto flatten_shape = op::v0::Constant::create(element::i32, Shape{2}, {32, 2048});
@@ -378,7 +372,7 @@ TEST_F(TransformationTestsF, FuseMOE3GemmCompressedTest1) {
             ov::OutputVector{hidden_states_reshape, unsqueeze_moe, topk_indices,
                 wei_gate, scale_gate, zp_gate, wei_up, scale_up, zp_up, wei_down, scale_down, zp_down}, config);
         model = std::make_shared<ov::Model>(moe_compressed, ov::ParameterVector{hidden_states});
-        manager.register_pass<FuseMOE3GemmCompressed>();
+        manager.register_pass<FuseMoERouter>();
     }
     {
         auto hidden_states = std::make_shared<ov::op::v0::Parameter>(element::f16, Shape{4, 8, 2048});

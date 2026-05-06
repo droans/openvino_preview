@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-#include "fuse_moe_3gemm_compressed.hpp"
+#include "fuse_moe_router.hpp"
 
 #include <memory>
 
@@ -19,7 +19,6 @@
 #include "openvino/op/matmul.hpp"
 #include "openvino/op/reduce_sum.hpp"
 #include "openvino/op/reshape.hpp"
-#include "openvino/op/shape_of.hpp"
 #include "openvino/op/sigmoid.hpp"
 #include "openvino/op/slice.hpp"
 #include "openvino/op/softmax.hpp"
@@ -33,10 +32,9 @@
 #include "openvino/pass/pattern/op/pattern.hpp"
 #include "openvino/pass/pattern/op/wrap_type.hpp"
 #include "openvino/util/pp.hpp"
-#include "ov_ops/moe_compressed.hpp"
 
 namespace ov::intel_gpu {
-FuseMOE3GemmCompressed::FuseMOE3GemmCompressed() {
+FuseMoERouter::FuseMoERouter() {
     using namespace ov::pass::pattern;
     using namespace ov::pass;
 #define ANY any_input()
@@ -142,14 +140,6 @@ FuseMOE3GemmCompressed::FuseMOE3GemmCompressed() {
         }
 
         auto config = moe_compressed->get_config();
-        bool has_shared_expert = pattern_map.count(shared_gate_wei_m) > 0;
-        if (!has_shared_expert) {
-            config.num_shared_expert = 0;
-        }
-        // When Optional<Reshape> is absent, the optional pattern is NOT in the map.
-        auto hs_reshaped = pattern_map.count(hidden_state_reshape)
-            ? pattern_map.at(hidden_state_reshape)
-            : pattern_map.at(hidden_state_m);
 
         // Create MoERouterFused op for routing (softmax/sigmoid + topk + normalize)
         ov::intel_gpu::op::MoERouterFused::Config router_config;
@@ -161,59 +151,21 @@ FuseMOE3GemmCompressed::FuseMOE3GemmCompressed() {
             router_args.push_back(pattern_map.at(sig_routing_bias));
             router_args.push_back(pattern_map.at(sig_eps_value));
             router_config.routing_type = ov::intel_gpu::op::MoERouterFused::RoutingType::SIGMOID_BIAS;
-            config.routing_type = ov::op::internal::MOECompressed::RoutingType::SIGMOID_BIAS;
         }
 
         auto router_node = std::make_shared<ov::intel_gpu::op::MoERouterFused>(router_args, router_config);
         ov::copy_runtime_info(moe_compressed, router_node);
 
-        // Create MOECompressed with pre-computed topk from router
-        // Input layout: [hidden_states, topk_weights, topk_indices, w0..zp2, (shared_*)?]
-        OutputVector args{
-            hs_reshaped,
-            router_node->output(0),  // topk_weights
-            router_node->output(1),  // topk_indices
-            pattern_map.at(gate_wei_m),
-            pattern_map.at(gate_scale_m),
-            pattern_map.at(gate_zp_m),
-            pattern_map.at(up_wei_m),
-            pattern_map.at(up_scale_m),
-            pattern_map.at(up_zp_m),
-            pattern_map.at(down_wei_m),
-            pattern_map.at(down_scale_m),
-            pattern_map.at(down_zp_m),
-        };
-        if (has_shared_expert) {
-            args.push_back(pattern_map.at(shared_gate_wei_m));
-            args.push_back(pattern_map.at(shared_gate_scale_m));
-            args.push_back(pattern_map.at(shared_gate_zp_m));
-            args.push_back(pattern_map.at(shared_up_wei_m));
-            args.push_back(pattern_map.at(shared_up_scale_m));
-            args.push_back(pattern_map.at(shared_up_zp_m));
-            args.push_back(pattern_map.at(shared_down_wei_m));
-            args.push_back(pattern_map.at(shared_down_scale_m));
-            args.push_back(pattern_map.at(shared_down_zp_m));
-            args.push_back(pattern_map.at(shared_gate_gate_wei_m));
-        }
-
-        std::shared_ptr<ov::Node> moe_fused = std::make_shared<ov::op::internal::MOECompressed>(args, config);
-        ov::copy_runtime_info(moe_compressed, moe_fused);
-
-        // If MOECompressed's first input was the original (un-reshaped) hidden state
-        // but the fused op works on the flattened 2D input, reshape the output back.
-        if (moe_compressed->input_value(0) != hs_reshaped) {
-            auto hidden_state_shape = std::make_shared<ov::op::v3::ShapeOf>(pattern_map.at(hidden_state_m));
-            moe_fused = std::make_shared<ov::op::v1::Reshape>(moe_fused, hidden_state_shape, false);
-            ov::copy_runtime_info(moe_compressed, {hidden_state_shape, moe_fused});
-        }
-
-        moe_fused->set_friendly_name(moe_compressed->get_friendly_name());
-        ov::replace_node(moe_compressed, moe_fused);
+        // Replace routing inputs of MOECompressed with MoERouterFused outputs
+        // Input 1: routing_weights (topk_weights)
+        // Input 2: topk_indices
+        moe_compressed->input(1).replace_source_output(router_node->output(0));
+        moe_compressed->input(2).replace_source_output(router_node->output(1));
 
         return true;
     };
 
-    auto m = std::make_shared<Matcher>(moe_compressed_m, "FuseMOE3GemmCompressed");
+    auto m = std::make_shared<Matcher>(moe_compressed_m, "FuseMoERouter");
     this->register_matcher(m, callback);
 }
 

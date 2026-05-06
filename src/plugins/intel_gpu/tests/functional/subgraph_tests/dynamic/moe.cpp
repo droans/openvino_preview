@@ -170,7 +170,7 @@ const std::vector<MoeTestShapeParams> moe_params_smoke = {
     },
 };
 
-// Compressed weights — full GatherMatmul → MOECompressed → FuseMOE3GemmCompressed pipeline.
+// Compressed weights — full GatherMatmul → MOECompressed → FuseMoERouter pipeline.
 const std::vector<ov::element::Type> weights_precisions = {
     ov::element::u8,
     ov::element::u4,
