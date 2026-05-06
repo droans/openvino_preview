@@ -356,60 +356,6 @@ struct onednn_linear {
     }
 };
 
-class MoE3GemmSwigluSoftMaxTopK : public KernelGenerator {
-public:
-    MoE3GemmSwigluSoftMaxTopK() : KernelGenerator("moe_3gemm_swiglu_fuse", "softmax_topk") {}
-
-protected:
-    [[nodiscard]] JitConstants get_jit_constants(const RuntimeParams& params) const override {
-        auto jit = KernelGenerator::get_jit_constants(params);
-        auto desc = params.typed_desc<moe_3gemm_fused_compressed>();
-        jit.make("SOFTMAX_TOPK_ENABLE", 1);
-        jit.make("TOP_K", desc->_config.top_k);
-        jit.make("VALUE_NUM", desc->_config.num_expert);
-        jit.make("MOE_DTYPE", params.get_input_layout(0).data_type == ov::element::f16 ? "half" : "float");
-        jit.make("MOE_DTYPE_SIZE", params.get_input_layout(0).data_type == ov::element::f16 ? 2 : 4);
-        return jit;
-    }
-
-    [[nodiscard]] Arguments get_arguments_desc(const RuntimeParams& params) const override {
-        Arguments args;
-
-        return args;
-    }
-
-    [[nodiscard]] DispatchDataFunc get_dispatch_data_func() const override {
-        return DispatchDataFunc{[](const RuntimeParams& params, KernelData& kd, ImplRuntimeParams* rt_params) {}};
-    }
-};
-
-class MoE3GemmSwigluSigmoidBiasTopK : public KernelGenerator {
-public:
-    MoE3GemmSwigluSigmoidBiasTopK() : KernelGenerator("moe_3gemm_swiglu_fuse", "sigmoid_bias_topk") {}
-
-protected:
-    [[nodiscard]] JitConstants get_jit_constants(const RuntimeParams& params) const override {
-        auto jit = KernelGenerator::get_jit_constants(params);
-        auto desc = params.typed_desc<moe_3gemm_fused_compressed>();
-        jit.make("SIGMOID_BIAS_TOPK_ENABLE", 1);
-        jit.make("TOP_K", desc->_config.top_k);
-        jit.make("VALUE_NUM", desc->_config.num_expert);
-        jit.make("MOE_DTYPE", params.get_input_layout(0).data_type == ov::element::f16 ? "half" : "float");
-        jit.make("MOE_DTYPE_SIZE", params.get_input_layout(0).data_type == ov::element::f16 ? 2 : 4);
-        return jit;
-    }
-
-    [[nodiscard]] Arguments get_arguments_desc(const RuntimeParams& params) const override {
-        Arguments args;
-
-        return args;
-    }
-
-    [[nodiscard]] DispatchDataFunc get_dispatch_data_func() const override {
-        return DispatchDataFunc{[](const RuntimeParams& params, KernelData& kd, ImplRuntimeParams* rt_params) {}};
-    }
-};
-
 class MoE3GemmSwigluGather : public KernelGenerator {
 public:
     MoE3GemmSwigluGather() : KernelGenerator("moe_3gemm_swiglu_fuse", "gather") {}
@@ -1350,8 +1296,6 @@ public:
     void prepare_internal_buffers(typed_primitive_inst<moe_3gemm_fused_compressed>& instance, scratch_buffers& scratch, size_t token_num) {
         const auto& intermediates_memories = instance.get_intermediates_memories();
         auto& engine = instance.get_network().get_engine();
-        scratch.topk_id = intermediates_memories[MOE_INTERNAL_BUFFER_TOPK_IDX];
-        scratch.topk_weights = intermediates_memories[MOE_INTERNAL_BUFFER_TOPK_WEIGHTS];
         scratch.up = intermediates_memories[MOE_INTERNAL_BUFFER_UP_OUTPUT];
         scratch.y = intermediates_memories[MOE_INTERNAL_BUFFER_DOWN_OUTPUT];
         if (token_num > 1) {
