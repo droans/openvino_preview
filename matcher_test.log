@@ -1,0 +1,185 @@
+Running main() from thirdparty/gtest/gtest/googletest/src/gtest_main.cc
+Note: Google Test filter = *Convert3GatherMatmulMoeBlockToMoeOp_GeluNotMatched*
+[==========] Running 1 test from 1 test suite.
+[----------] Global test environment set-up.
+[----------] 1 test from TransformationTestsF
+[ RUN      ] TransformationTestsF.Convert3GatherMatmulMoeBlockToMoeOp_GeluNotMatched
+
+MEM_USAGE=72332KB
+[DEBUG] 2026-05-04T20:24:05z src/core/src/pass/manager.cpp:352	Pass ov::pass::Validate is disabled.
+[DEBUG] 2026-05-04T20:24:05z src/core/src/pass/manager.cpp:352	Pass ov::pass::Validate is disabled.
+[DEBUG] 2026-05-04T20:24:05z src/core/src/pass/manager.cpp:352	Pass ov::pass::Validate is disabled.
+{  [Convert3GatherMatmulMoeBlockToMoeOp] START: trying to start pattern matching with Reshape Reshape_219
+│  
+│  {  MATCHING PATTERN NODE: WrapType<Reshape>(WrapType, any_input)
+│  ├─ AGAINST  GRAPH   NODE: Reshape(Parameter, Constant)
+│  ├─ NODES' TYPE AND PREDICATE MATCHED. CHECKING 2 PATTERN ARGUMENTS: 
+│  │  
+│  │  {  GRAPH NODE IS NOT COMMUTATIVE, A SINGLE PERMUTATION IS PRESENT ONLY
+│  │  │  
+│  │  │  {  ARGUMENT 0: WrapType<ReduceSum>
+│  │  │  │  
+│  │  │  │  {  MATCHING PATTERN NODE: WrapType<ReduceSum>(WrapType, any_input)
+│  │  │  │  ├─ AGAINST  GRAPH   NODE: Parameter()
+│  │  │  │  }  NODES' TYPE DIDN'T MATCH. EXPECTED: WrapType<ReduceSum>. OBSERVED: Parameter
+│  │  │  │
+│  │  │  }  ARGUMENT 0 DIDN'T MATCH 
+│  │  │
+│  │  }  PERMUTATION DIDN'T MATCH
+│  │
+│  }  ARGUMENTS DIDN'T MATCH
+│
+}  [Convert3GatherMatmulMoeBlockToMoeOp] END: PATTERN DIDN'T MATCH
+
+{  [Convert3GatherMatmulMoeBlockToMoeOp] START: trying to start pattern matching with Reshape Reshape_248
+│  
+│  {  MATCHING PATTERN NODE: WrapType<Reshape>(WrapType, any_input)
+│  ├─ AGAINST  GRAPH   NODE: Reshape(ReduceSum, Constant)
+│  ├─ NODES' TYPE AND PREDICATE MATCHED. CHECKING 2 PATTERN ARGUMENTS: 
+│  │  
+│  │  {  GRAPH NODE IS NOT COMMUTATIVE, A SINGLE PERMUTATION IS PRESENT ONLY
+│  │  │  
+│  │  │  {  ARGUMENT 0: WrapType<ReduceSum>
+│  │  │  │  
+│  │  │  │  {  MATCHING PATTERN NODE: WrapType<ReduceSum>(WrapType, any_input)
+│  │  │  │  ├─ AGAINST  GRAPH   NODE: ReduceSum(Multiply, Constant)
+│  │  │  │  ├─ PREDICATE `attrs_match({ keep_dims: NO })` PASSED
+│  │  │  │  ├─ NODES' TYPE AND PREDICATE MATCHED. CHECKING 2 PATTERN ARGUMENTS: 
+│  │  │  │  │  
+│  │  │  │  │  {  GRAPH NODE IS NOT COMMUTATIVE, A SINGLE PERMUTATION IS PRESENT ONLY
+│  │  │  │  │  │  
+│  │  │  │  │  │  {  ARGUMENT 0: WrapType<Multiply>
+│  │  │  │  │  │  │  
+│  │  │  │  │  │  │  {  MATCHING PATTERN NODE: WrapType<Multiply>(patternOr, WrapType)
+│  │  │  │  │  │  │  ├─ AGAINST  GRAPH   NODE: Multiply(GatherMatmul, Unsqueeze)
+│  │  │  │  │  │  │  ├─ PREDICATE `consumers_count(1)` PASSED
+│  │  │  │  │  │  │  ├─ NODES' TYPE AND PREDICATE MATCHED. CHECKING 2 PATTERN ARGUMENTS: 
+│  │  │  │  │  │  │  │  
+│  │  │  │  │  │  │  │  {  NEW PERMUTATION
+│  │  │  │  │  │  │  │  │  
+│  │  │  │  │  │  │  │  │  {  ARGUMENT 0: patternOr
+│  │  │  │  │  │  │  │  │  │  
+│  │  │  │  │  │  │  │  │  │  {  MATCHING PATTERN NODE: patternOr(WrapType, WrapType)
+│  │  │  │  │  │  │  │  │  │  ├─ AGAINST  GRAPH   NODE: GatherMatmul(Multiply, Constant, TopK, Constant)
+│  │  │  │  │  │  │  │  │  │  ├─ CHECKING 2 OR BRANCHES: patternOr_297
+│  │  │  │  │  │  │  │  │  │  │  
+│  │  │  │  │  │  │  │  │  │  │  {  BRANCH 0: WrapType<GatherMatmul>
+│  │  │  │  │  │  │  │  │  │  │  │  
+│  │  │  │  │  │  │  │  │  │  │  │  {  MATCHING PATTERN NODE: WrapType<GatherMatmul>(WrapType, any_input, any_input, any_input)
+│  │  │  │  │  │  │  │  │  │  │  │  ├─ AGAINST  GRAPH   NODE: GatherMatmul(Multiply, Constant, TopK, Constant)
+│  │  │  │  │  │  │  │  │  │  │  │  ├─ NODES' TYPE AND PREDICATE MATCHED. CHECKING 4 PATTERN ARGUMENTS: 
+│  │  │  │  │  │  │  │  │  │  │  │  │  
+│  │  │  │  │  │  │  │  │  │  │  │  │  {  GRAPH NODE IS NOT COMMUTATIVE, A SINGLE PERMUTATION IS PRESENT ONLY
+│  │  │  │  │  │  │  │  │  │  │  │  │  │  
+│  │  │  │  │  │  │  │  │  │  │  │  │  │  {  ARGUMENT 0: WrapType<Multiply>
+│  │  │  │  │  │  │  │  │  │  │  │  │  │  │  
+│  │  │  │  │  │  │  │  │  │  │  │  │  │  │  {  MATCHING PATTERN NODE: WrapType<Multiply>(WrapType, patternOr)
+│  │  │  │  │  │  │  │  │  │  │  │  │  │  │  ├─ AGAINST  GRAPH   NODE: Multiply(Gelu, GatherMatmul)
+│  │  │  │  │  │  │  │  │  │  │  │  │  │  │  ├─ NODES' TYPE AND PREDICATE MATCHED. CHECKING 2 PATTERN ARGUMENTS: 
+│  │  │  │  │  │  │  │  │  │  │  │  │  │  │  │  
+│  │  │  │  │  │  │  │  │  │  │  │  │  │  │  │  {  NEW PERMUTATION
+│  │  │  │  │  │  │  │  │  │  │  │  │  │  │  │  │  
+│  │  │  │  │  │  │  │  │  │  │  │  │  │  │  │  │  {  ARGUMENT 0: WrapType<Swish>
+│  │  │  │  │  │  │  │  │  │  │  │  │  │  │  │  │  │  
+│  │  │  │  │  │  │  │  │  │  │  │  │  │  │  │  │  │  {  MATCHING PATTERN NODE: WrapType<Swish>(patternOr)
+│  │  │  │  │  │  │  │  │  │  │  │  │  │  │  │  │  │  ├─ AGAINST  GRAPH   NODE: Gelu(GatherMatmul)
+│  │  │  │  │  │  │  │  │  │  │  │  │  │  │  │  │  │  }  NODES' TYPE DIDN'T MATCH. EXPECTED: WrapType<Swish>. OBSERVED: Gelu
+│  │  │  │  │  │  │  │  │  │  │  │  │  │  │  │  │  │
+│  │  │  │  │  │  │  │  │  │  │  │  │  │  │  │  │  }  ARGUMENT 0 DIDN'T MATCH 
+│  │  │  │  │  │  │  │  │  │  │  │  │  │  │  │  │
+│  │  │  │  │  │  │  │  │  │  │  │  │  │  │  │  }  PERMUTATION DIDN'T MATCH
+│  │  │  │  │  │  │  │  │  │  │  │  │  │  │  │  
+│  │  │  │  │  │  │  │  │  │  │  │  │  │  │  │  {  NEW PERMUTATION
+│  │  │  │  │  │  │  │  │  │  │  │  │  │  │  │  │  
+│  │  │  │  │  │  │  │  │  │  │  │  │  │  │  │  │  {  ARGUMENT 0: patternOr
+│  │  │  │  │  │  │  │  │  │  │  │  │  │  │  │  │  │  
+│  │  │  │  │  │  │  │  │  │  │  │  │  │  │  │  │  │  {  MATCHING PATTERN NODE: patternOr(WrapType, WrapType)
+│  │  │  │  │  │  │  │  │  │  │  │  │  │  │  │  │  │  ├─ AGAINST  GRAPH   NODE: Gelu(GatherMatmul)
+│  │  │  │  │  │  │  │  │  │  │  │  │  │  │  │  │  │  ├─ CHECKING 2 OR BRANCHES: patternOr_283
+│  │  │  │  │  │  │  │  │  │  │  │  │  │  │  │  │  │  │  
+│  │  │  │  │  │  │  │  │  │  │  │  │  │  │  │  │  │  │  {  BRANCH 0: WrapType<GatherMatmul>
+│  │  │  │  │  │  │  │  │  │  │  │  │  │  │  │  │  │  │  │  
+│  │  │  │  │  │  │  │  │  │  │  │  │  │  │  │  │  │  │  │  {  MATCHING PATTERN NODE: WrapType<GatherMatmul>(WrapType, any_input, any_input, any_input)
+│  │  │  │  │  │  │  │  │  │  │  │  │  │  │  │  │  │  │  │  ├─ AGAINST  GRAPH   NODE: Gelu(GatherMatmul)
+│  │  │  │  │  │  │  │  │  │  │  │  │  │  │  │  │  │  │  │  }  NODES' TYPE DIDN'T MATCH. EXPECTED: WrapType<GatherMatmul>. OBSERVED: Gelu
+│  │  │  │  │  │  │  │  │  │  │  │  │  │  │  │  │  │  │  │
+│  │  │  │  │  │  │  │  │  │  │  │  │  │  │  │  │  │  │  }  BRANCH 0 DIDN'T MATCH
+│  │  │  │  │  │  │  │  │  │  │  │  │  │  │  │  │  │  │  
+│  │  │  │  │  │  │  │  │  │  │  │  │  │  │  │  │  │  │  {  BRANCH 1: WrapType<GatherMatmulCompressed>
+│  │  │  │  │  │  │  │  │  │  │  │  │  │  │  │  │  │  │  │  
+│  │  │  │  │  │  │  │  │  │  │  │  │  │  │  │  │  │  │  │  {  MATCHING PATTERN NODE: WrapType<GatherMatmulCompressed>(WrapType, any_input, any_input, any_input, any_input, any_input)
+│  │  │  │  │  │  │  │  │  │  │  │  │  │  │  │  │  │  │  │  ├─ AGAINST  GRAPH   NODE: Gelu(GatherMatmul)
+│  │  │  │  │  │  │  │  │  │  │  │  │  │  │  │  │  │  │  │  }  NODES' TYPE DIDN'T MATCH. EXPECTED: WrapType<GatherMatmulCompressed>. OBSERVED: Gelu
+│  │  │  │  │  │  │  │  │  │  │  │  │  │  │  │  │  │  │  │
+│  │  │  │  │  │  │  │  │  │  │  │  │  │  │  │  │  │  │  }  BRANCH 1 DIDN'T MATCH
+│  │  │  │  │  │  │  │  │  │  │  │  │  │  │  │  │  │  │
+│  │  │  │  │  │  │  │  │  │  │  │  │  │  │  │  │  │  }  NONE OF OR BRANCHES MATCHED
+│  │  │  │  │  │  │  │  │  │  │  │  │  │  │  │  │  │
+│  │  │  │  │  │  │  │  │  │  │  │  │  │  │  │  │  }  ARGUMENT 0 DIDN'T MATCH 
+│  │  │  │  │  │  │  │  │  │  │  │  │  │  │  │  │
+│  │  │  │  │  │  │  │  │  │  │  │  │  │  │  │  }  PERMUTATION DIDN'T MATCH
+│  │  │  │  │  │  │  │  │  │  │  │  │  │  │  │
+│  │  │  │  │  │  │  │  │  │  │  │  │  │  │  ├─ NONE OF PERMUTATIONS MATCHED
+│  │  │  │  │  │  │  │  │  │  │  │  │  │  │  │
+│  │  │  │  │  │  │  │  │  │  │  │  │  │  │  }  ARGUMENTS DIDN'T MATCH
+│  │  │  │  │  │  │  │  │  │  │  │  │  │  │
+│  │  │  │  │  │  │  │  │  │  │  │  │  │  }  ARGUMENT 0 DIDN'T MATCH 
+│  │  │  │  │  │  │  │  │  │  │  │  │  │
+│  │  │  │  │  │  │  │  │  │  │  │  │  }  PERMUTATION DIDN'T MATCH
+│  │  │  │  │  │  │  │  │  │  │  │  │
+│  │  │  │  │  │  │  │  │  │  │  │  }  ARGUMENTS DIDN'T MATCH
+│  │  │  │  │  │  │  │  │  │  │  │
+│  │  │  │  │  │  │  │  │  │  │  }  BRANCH 0 DIDN'T MATCH
+│  │  │  │  │  │  │  │  │  │  │  
+│  │  │  │  │  │  │  │  │  │  │  {  BRANCH 1: WrapType<GatherMatmulCompressed>
+│  │  │  │  │  │  │  │  │  │  │  │  
+│  │  │  │  │  │  │  │  │  │  │  │  {  MATCHING PATTERN NODE: WrapType<GatherMatmulCompressed>(WrapType, any_input, any_input, any_input, any_input, any_input)
+│  │  │  │  │  │  │  │  │  │  │  │  ├─ AGAINST  GRAPH   NODE: GatherMatmul(Multiply, Constant, TopK, Constant)
+│  │  │  │  │  │  │  │  │  │  │  │  }  NODES' TYPE DIDN'T MATCH. EXPECTED: WrapType<GatherMatmulCompressed>. OBSERVED: GatherMatmul
+│  │  │  │  │  │  │  │  │  │  │  │
+│  │  │  │  │  │  │  │  │  │  │  }  BRANCH 1 DIDN'T MATCH
+│  │  │  │  │  │  │  │  │  │  │
+│  │  │  │  │  │  │  │  │  │  }  NONE OF OR BRANCHES MATCHED
+│  │  │  │  │  │  │  │  │  │
+│  │  │  │  │  │  │  │  │  }  ARGUMENT 0 DIDN'T MATCH 
+│  │  │  │  │  │  │  │  │
+│  │  │  │  │  │  │  │  }  PERMUTATION DIDN'T MATCH
+│  │  │  │  │  │  │  │  
+│  │  │  │  │  │  │  │  {  NEW PERMUTATION
+│  │  │  │  │  │  │  │  │  
+│  │  │  │  │  │  │  │  │  {  ARGUMENT 0: WrapType<Unsqueeze>
+│  │  │  │  │  │  │  │  │  │  
+│  │  │  │  │  │  │  │  │  │  {  MATCHING PATTERN NODE: WrapType<Unsqueeze>(WrapType, any_input)
+│  │  │  │  │  │  │  │  │  │  ├─ AGAINST  GRAPH   NODE: GatherMatmul(Multiply, Constant, TopK, Constant)
+│  │  │  │  │  │  │  │  │  │  }  NODES' TYPE DIDN'T MATCH. EXPECTED: WrapType<Unsqueeze>. OBSERVED: GatherMatmul
+│  │  │  │  │  │  │  │  │  │
+│  │  │  │  │  │  │  │  │  }  ARGUMENT 0 DIDN'T MATCH 
+│  │  │  │  │  │  │  │  │
+│  │  │  │  │  │  │  │  }  PERMUTATION DIDN'T MATCH
+│  │  │  │  │  │  │  │
+│  │  │  │  │  │  │  ├─ NONE OF PERMUTATIONS MATCHED
+│  │  │  │  │  │  │  │
+│  │  │  │  │  │  │  }  ARGUMENTS DIDN'T MATCH
+│  │  │  │  │  │  │
+│  │  │  │  │  │  }  ARGUMENT 0 DIDN'T MATCH 
+│  │  │  │  │  │
+│  │  │  │  │  }  PERMUTATION DIDN'T MATCH
+│  │  │  │  │
+│  │  │  │  }  ARGUMENTS DIDN'T MATCH
+│  │  │  │
+│  │  │  }  ARGUMENT 0 DIDN'T MATCH 
+│  │  │
+│  │  }  PERMUTATION DIDN'T MATCH
+│  │
+│  }  ARGUMENTS DIDN'T MATCH
+│
+}  [Convert3GatherMatmulMoeBlockToMoeOp] END: PATTERN DIDN'T MATCH
+
+[DEBUG] 2026-05-04T20:24:05z src/core/src/pass/manager.cpp:352	Pass ov::pass::Validate is disabled.
+[DEBUG] 2026-05-04T20:24:05z src/core/src/pass/manager.cpp:352	Pass ov::pass::Validate is disabled.
+[       OK ] TransformationTestsF.Convert3GatherMatmulMoeBlockToMoeOp_GeluNotMatched (93 ms)
+[----------] 1 test from TransformationTestsF (93 ms total)
+
+[----------] Global test environment tear-down
+[==========] 1 test from 1 test suite ran. (93 ms total)
+[  PASSED  ] 1 test.

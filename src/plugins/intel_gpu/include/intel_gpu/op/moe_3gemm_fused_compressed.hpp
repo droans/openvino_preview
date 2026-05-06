@@ -18,27 +18,17 @@ public:
     /// \brief Constructs a MOE3GemmFusedCompressed operation with config only
     /// \param args The input tensors, in the following order:
     ///   0: hidden_states - input tensor with hidden representations
-    ///   1: routing_weights - [num_seq, num_experts] routing weights for all experts
-    ///   2: w0_weight - expert weights for first projection,
-    ///   shape [num_experts, inter_size, group_num, group_size]
-    ///   3: w0_scale - expert scale for first projection for compressed experts,
-    ///   shape [num_experts, inter_size, group_num, 1]
-    ///   4: w0_zp - expert zp for first projection for compressed experts,
-    ///   shape [num_experts, inter_size, group_num, 1]
-    ///   5: w1_weight - expert weights for second projection,
-    ///   shape [num_experts, inter_size, group_num, group_size]
-    ///   6: w1_scale - expert scale for second projection for compressed experts,
-    ///   shape [num_experts, inter_size, group_num, 1]
-    ///   7: w1_zp - expert zp for second projection for compressed experts,
-    ///   shape [num_experts, inter_size, group_num, 1]
-    ///   8: w2_weight - expert weights for final projection,
-    ///   shape [num_experts, hidden_size, group_num, group_size]
-    ///   9: w2_scale - expert scale for final projection for compressed experts,
-    ///   shape [num_experts, hidden_size, group_num, 1]
-    ///   10: w2_zp - expert zp for final projection for compressed experts,
-    ///   shape [num_experts, hidden_size, group_num, 1]
-    ///   11: routing_bias (optional, SIGMOID_BIAS only) - [1, num_experts] routing bias for sigmoid routing
-    ///   12: routing_eps (optional, SIGMOID_BIAS only) - scalar epsilon for normalization (read at kernel compile time)
+    ///   1: topk_weights - [num_tokens, top_k] pre-computed routing weights from MoERouterFused
+    ///   2: w0_weight - expert weights for first projection
+    ///   3: w0_scale
+    ///   4: w0_zp
+    ///   5: w1_weight - expert weights for second projection
+    ///   6: w1_scale
+    ///   7: w1_zp
+    ///   8: w2_weight - expert weights for final projection
+    ///   9: w2_scale
+    ///   10: w2_zp
+    ///   11: topk_indices - [num_tokens, top_k] pre-computed expert indices from MoERouterFused
     /// \param config Configuration for the MOE 3GEMM SWIGLU fused operation
     MOE3GemmFusedCompressed(const OutputVector& args, const MOECompressed::Config config);
 

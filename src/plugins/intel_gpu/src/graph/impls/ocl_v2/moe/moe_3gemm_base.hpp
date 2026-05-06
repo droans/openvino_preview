@@ -33,7 +33,7 @@ enum class MoE3GemmMicroKernelType : uint8_t { MLP_GATE = 0, MLP_UP = 1, MLP_DOW
 
 enum class MOE3GemmInputIndex : uint8_t {
     HIDDEN_STATES = 0,
-    ROUTING_WEIGHTS = 1,
+    TOPK_WEIGHTS = 1,
     WEIGHT_0 = 2,
     SCALE_0 = 3,
     ZP_0 = 4,
@@ -43,23 +43,19 @@ enum class MOE3GemmInputIndex : uint8_t {
     WEIGHT_2 = 8,
     SCALE_2 = 9,
     ZP_2 = 10,
-    // Sigmoid routing (optional, always at index 11-12)
-    // For SOFTMAX routing without shared expert these are absent.
-    // For SOFTMAX routing with shared expert, dummy placeholders fill these slots.
-    ROUTING_BIAS = 11,
-    ROUTING_EPS = 12,
+    TOPK_INDICES = 11,
     // Shared expert inputs (optional, when num_shared_expert > 0)
-    // Always start at index 13 regardless of routing type.
-    SHARED_GATE_WEIGHT = 13,
-    SHARED_GATE_SCALE = 14,
-    SHARED_GATE_ZP = 15,
-    SHARED_UP_WEIGHT = 16,
-    SHARED_UP_SCALE = 17,
-    SHARED_UP_ZP = 18,
-    SHARED_DOWN_WEIGHT = 19,
-    SHARED_DOWN_SCALE = 20,
-    SHARED_DOWN_ZP = 21,
-    SHARED_GATE_GATE_WEIGHT = 22
+    // Always start at index 12 regardless of routing type.
+    SHARED_GATE_WEIGHT = 12,
+    SHARED_GATE_SCALE = 13,
+    SHARED_GATE_ZP = 14,
+    SHARED_UP_WEIGHT = 15,
+    SHARED_UP_SCALE = 16,
+    SHARED_UP_ZP = 17,
+    SHARED_DOWN_WEIGHT = 18,
+    SHARED_DOWN_SCALE = 19,
+    SHARED_DOWN_ZP = 20,
+    SHARED_GATE_GATE_WEIGHT = 21
 };
 
 struct moe_3gemm_config {

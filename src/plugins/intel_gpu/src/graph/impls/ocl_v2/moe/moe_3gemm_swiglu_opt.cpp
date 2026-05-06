@@ -852,8 +852,6 @@ dnnl::memory convert2dnnl(const memory::ptr& ptr, const std::vector<int64_t>& di
 class moe_3gemm_swiglu_opt_impl : public PrimitiveImplOCL {
 public:
     DECLARE_OBJECT_TYPE_SERIALIZATION(ov::intel_gpu::ocl::MoE3GemmSwigluImpl)
-    Stage::Ptr softmax_topk = make_stage<MoE3GemmSwigluSoftMaxTopK>();
-    Stage::Ptr sigmoid_bias_topk = make_stage<MoE3GemmSwigluSigmoidBiasTopK>();
     Stage::Ptr gather = make_stage<MoE3GemmSwigluGather>();
     Stage::Ptr scatter = make_stage<MoE3GemmSwigluScatter>();
     Stage::Ptr mlp_gate_up = make_stage<MoE3GemmSwigluMLPGateUp>();
@@ -1009,14 +1007,7 @@ public:
         GPU_DEBUG_TRACE_DETAIL << "[DEBUG] moe_3gemm_swiglu_opt_impl(): use_grouped_gemm_prefill=" << use_grouped_gemm_prefill << std::endl;
 
         // Don't change the order of stages
-        auto routing_type = node.as<moe_3gemm_fused_compressed>().get_primitive()->_config.routing_type;
-        if (routing_type == ov::op::internal::MOECompressed::RoutingType::SOFTMAX) {
-            add_stage(softmax_topk, params);
-        } else if (routing_type == ov::op::internal::MOECompressed::RoutingType::SIGMOID_BIAS) {
-            add_stage(sigmoid_bias_topk, params);
-        } else {
-            OPENVINO_THROW("Unsupported routing type for moe_3gemm_swiglu_opt_impl: ", static_cast<int>(routing_type));
-        }
+        // Routing is now handled externally by MoERouterFused primitive.
         add_stage(gather, params);
         add_stage(scatter, params);
         add_stage(mlp_gate_up, params);
@@ -2494,37 +2485,15 @@ public:
         prepare_internal_buffers(instance, scratch, token_num);
         kernel_dump_info.clear_entries();
 
-        // routing: softmax+topk or sigmoid+bias+topk
-        auto lws_size = config.num_expert;
-        cldnn::event::ptr topk_event;
-        if (config.routing_type == ov::op::internal::MOECompressed::RoutingType::SOFTMAX) {
-            topk_event = execute_stage(events,
-                                       instance,
-                                       *softmax_topk,
-                                       {instance.input_memory_ptr(static_cast<size_t>(MOE3GemmInputIndex::ROUTING_WEIGHTS))},
-                                       {scratch.topk_id, scratch.topk_weights},
-                                       {token_num, lws_size},
-                                       {1, lws_size},
-                                       instance.needs_completion_event());
-        } else if (config.routing_type == ov::op::internal::MOECompressed::RoutingType::SIGMOID_BIAS) {
-            topk_event = execute_stage(events,
-                                       instance,
-                                       *sigmoid_bias_topk,
-                                       {instance.input_memory_ptr(static_cast<size_t>(MOE3GemmInputIndex::ROUTING_WEIGHTS)),
-                                        instance.input_memory_ptr(static_cast<size_t>(MOE3GemmInputIndex::ROUTING_BIAS)),
-                                        instance.input_memory_ptr(static_cast<size_t>(MOE3GemmInputIndex::ROUTING_EPS))},
-                                       {scratch.topk_id, scratch.topk_weights},
-                                       {token_num, lws_size},
-                                       {1, lws_size},
-                                       instance.needs_completion_event());
-        } else {
-            OPENVINO_THROW("Unsupported routing type ", static_cast<int>(config.routing_type));
-        }
+        // Routing is now done externally by MoERouterFused primitive.
+        // Read pre-computed topk_weights and topk_indices from inputs.
+        scratch.topk_weights = instance.input_memory_ptr(static_cast<size_t>(MOE3GemmInputIndex::TOPK_WEIGHTS));
+        scratch.topk_id = instance.input_memory_ptr(static_cast<size_t>(MOE3GemmInputIndex::TOPK_INDICES));
 
         // Single token is a special case, we don't need to do gather/scatter,
         // and we can apply optimal kernels against memory bound to improve performance.
         if (token_num == 1) {
-            return exec_single_token({topk_event}, instance, scratch);
+            return exec_single_token(events, instance, scratch);
         }
 
         auto final_hidden_states_mem_ptr = instance.output_memory_ptr(0);
@@ -2538,8 +2507,10 @@ public:
         // always use CPU mask gen and therefore always need topk to be ready first.
         const bool use_gpu_mask_gen = use_micro_gemm_prefill && use_gpu_mask_gen_prefill;
         if (!use_gpu_mask_gen) {
-            // Wait for topk is ready
-            topk_event->wait();
+            // Wait for input events (topk computed by MoERouterFused)
+            for (auto& ev : events) {
+                if (ev) ev->wait();
+            }
         }
 
         GPU_DEBUG_TRACE_DETAIL << "\nMoE3GemmFusedCompressed exec(): token_num=" << token_num << ", max_topk=" << static_cast<int>(config.top_k)
@@ -2547,11 +2518,11 @@ public:
                                << std::endl;
         update_rt_params(instance);
         if (use_micro_gemm_prefill) {
-            ret_env = exec_prefill_micro_gemm({topk_event}, instance, scratch, use_gpu_mask_gen);
+            ret_env = exec_prefill_micro_gemm(events, instance, scratch, use_gpu_mask_gen);
         } else if (use_grouped_gemm_prefill) {
-            ret_env = exec_prefill_grouped_gemm({topk_event}, stream, instance, scratch);
+            ret_env = exec_prefill_grouped_gemm(events, stream, instance, scratch);
         } else {
-            ret_env = exec_prefill_onednn({topk_event}, stream, instance, scratch);
+            ret_env = exec_prefill_onednn(events, stream, instance, scratch);
         }
 
         if (_has_shared_expert) {

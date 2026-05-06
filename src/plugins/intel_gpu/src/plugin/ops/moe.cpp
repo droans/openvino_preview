@@ -36,54 +36,22 @@ static void CreateMOE3GemmFusedCompressedOp(ProgramBuilder& p, const std::shared
     auto inputs = p.GetInputInfo(op);
     const auto& config = op->get_config();
     ///   0: hidden_states - input tensor with hidden representations
-    ///   1: routing_weights - [num_seq, num_experts] routing weights for all experts
-    ///   2: w0_weight - expert weights for first projection,
-    ///                  shape [num_experts, inter_size, group_num, group_size]
-    ///   3: w0_scale - expert scale for first projection for compressed experts,
-    ///                  shape [num_experts, inter_size, group_num, 1]
-    ///   4: w0_zp - expert zp for first projection for compressed experts,
-    ///                  shape [num_experts, inter_size, group_num, 1]
-    ///   5: w1_weight - expert weights for second projection,
-    ///                  shape [num_experts, inter_size, group_num, group_size]
-    ///   6: w1_scale - expert scale for second projection for compressed experts,
-    ///                  shape [num_experts, inter_size, group_num, 1]
-    ///   7: w1_zp - expert zp for second projection for compressed experts,
-    ///                  shape [num_experts, inter_size, group_num, 1]
-    ///   8: w2_weight - expert weights for final projection,
-    ///                  shape [num_experts, hidden_size, group_num, group_size]
-    ///   9: w2_scale - expert scale for final projection for compressed experts,
-    ///                  shape [num_experts, hidden_size, group_num, 1]
-    ///   10: w2_zp - expert zp for final projection for compressed experts,
-    ///                  shape [num_experts, hidden_size, group_num, 1]
-    ///   11: routing_bias (optional, SIGMOID_BIAS only; dummy placeholder for SOFTMAX+shared) -
-    ///                  [1, num_experts] routing bias for sigmoid routing
-    ///   12: routing_eps (optional, SIGMOID_BIAS only; dummy placeholder for SOFTMAX+shared) -
-    ///                  scalar epsilon for normalization
+    ///   1: topk_weights - [num_tokens, top_k] pre-computed routing weights from MoERouterFused
+    ///   2: w0_weight - expert weights for first projection
+    ///   3: w0_scale
+    ///   4: w0_zp
+    ///   5: w1_weight - expert weights for second projection
+    ///   6: w1_scale
+    ///   7: w1_zp
+    ///   8: w2_weight - expert weights for final projection
+    ///   9: w2_scale
+    ///   10: w2_zp
+    ///   11: topk_indices - [num_tokens, top_k] pre-computed expert indices from MoERouterFused
     ///
-    ///   Options for shared experts (if config.num_shared_expert > 0, always starting at index 13):
-    ///   13: shared_gate_weight - shared expert weights for first projection,
-    ///                   shape [1, inter_size, group_num, group_size]
-    ///   14: shared_gate_scale - shared expert scale for first projection,
-    ///                   shape [1, inter_size, group_num, 1]
-    ///   15: shared_gate_zp - shared expert zp for first projection,
-    ///                   shape [1, inter_size, group_num, 1]
-    ///   16: shared_up_weight - shared expert weights for second projection,
-    ///                   shape [1, inter_size, group_num, group_size]
-    ///   17: shared_up_scale - shared expert scale for second projection,
-    ///                   shape [1, inter_size, group_num, 1]
-    ///   18: shared_up_zp - shared expert zp for second projection,
-    ///                   shape [1, inter_size, group_num, 1]
-    ///   19: shared_down_weight - shared expert weights for final projection,
-    ///                   shape [1, hidden_size, group_num, group_size]
-    ///   20: shared_down_scale - shared expert scale for final projection,
-    ///                   shape [1, hidden_size, group_num, 1]
-    ///   21: shared_down_zp - shared expert zp for final projection,
-    ///                   shape [1, hidden_size, group_num, 1]
-    ///   22: shared_gate_gate_weight - shared expert gate weight for gating,
-    ///                   shape [hidden_size]
-    const size_t expected_inputs = config.num_shared_expert > 0 ? 23
-                                 : config.routing_type == ov::op::internal::MOECompressed::RoutingType::SIGMOID_BIAS ? 13
-                                 : 11;
+    ///   Options for shared experts (if config.num_shared_expert > 0, starting at index 12):
+    ///   12-21: shared expert weights/scales/zps
+    ///   21: shared_gate_gate_weight
+    const size_t expected_inputs = config.num_shared_expert > 0 ? 22 : 12;
     validate_inputs_count(op, {expected_inputs});
 
     const std::string layerName = layer_type_name_ID(op);
