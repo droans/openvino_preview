@@ -1347,7 +1347,7 @@ public:
         }
     }
 
-    void get_expert_mask_from_gpu(const MOE3GemmFusedCompressed::Config& config, memory::ptr mem, stream& stream, expert_mask_cpu& expert_mask) {
+    void get_expert_mask_from_gpu(const MOECompressed::Config& config, memory::ptr mem, stream& stream, expert_mask_cpu& expert_mask) {
         // shape: [token_num, topk]
         auto layout = mem->get_layout();
         const auto& shape = layout.get_shape();

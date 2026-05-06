@@ -6,7 +6,6 @@
 
 #include "common_test_utils/ov_test_utils.hpp"
 #include "ov_ops/moe_compressed.hpp"
-#include "intel_gpu/op/moe_3gemm_fused_compressed.hpp"
 #include "intel_gpu/op/moe_router_fused.hpp"
 #include "openvino/op/add.hpp"
 #include "openvino/op/constant.hpp"
@@ -163,11 +162,10 @@ TEST_P(FuseMOE3GemmCompressedTest, CompareFunctions) {
         if (routing_type == MoERoutingType::SIGMOID_BIAS)
             config.routing_type = ov::op::internal::MOECompressed::RoutingType::SIGMOID_BIAS;
 
-        ov::OutputVector args{hidden_states_reshape, router_node->output(0),
-            wei_gate, scale_gate, zp_gate, wei_up, scale_up, zp_up, wei_down, scale_down, zp_down,
-            router_node->output(1)};
+        ov::OutputVector args{hidden_states_reshape, router_node->output(0), router_node->output(1),
+            wei_gate, scale_gate, zp_gate, wei_up, scale_up, zp_up, wei_down, scale_down, zp_down};
 
-        std::shared_ptr<ov::Node> result = std::make_shared<ov::intel_gpu::op::MOE3GemmFusedCompressed>(args, config);
+        std::shared_ptr<ov::Node> result = std::make_shared<ov::op::internal::MOECompressed>(args, config);
         if (!reshape_on_moe_input) {
             auto hidden_state_shape = std::make_shared<ov::op::v3::ShapeOf>(hidden_states);
             result = std::make_shared<ov::op::v1::Reshape>(result, hidden_state_shape, false);
@@ -255,10 +253,9 @@ TEST_F(TransformationTestsF, FuseMOE3GemmSharedExpertCompressedTest) {
         config.has_zp = true; config.hidden_size = 2048; config.inter_size = 768;
         config.num_expert = 128; config.num_shared_expert = 1; config.group_size = 128;
         config.top_k = 8; config.out_type = ov::element::f16;
-        auto moe_fused = std::make_shared<ov::intel_gpu::op::MOE3GemmFusedCompressed>(
-            ov::OutputVector{hidden_states, router_node->output(0),
+        auto moe_fused = std::make_shared<ov::op::internal::MOECompressed>(
+            ov::OutputVector{hidden_states, router_node->output(0), router_node->output(1),
                 wei_gate, scale_gate, zp_gate, wei_up, scale_up, zp_up, wei_down, scale_down, zp_down,
-                router_node->output(1),
                 sh_wei_gate, sh_scale_gate, sh_zp_gate, sh_wei_up, sh_scale_up, sh_zp_up,
                 sh_wei_down, sh_scale_down, sh_zp_down, sh_gate_gate_wei}, config);
         model_ref = std::make_shared<ov::Model>(moe_fused, ov::ParameterVector{hidden_states});
@@ -344,10 +341,9 @@ TEST_F(TransformationTestsF, FuseMOE3GemmSharedExpertCompressedSigmoidTest) {
         config.num_expert = 128; config.num_shared_expert = 1; config.group_size = 128;
         config.top_k = 8; config.out_type = ov::element::f16;
         config.routing_type = ov::op::internal::MOECompressed::RoutingType::SIGMOID_BIAS;
-        auto moe_fused = std::make_shared<ov::intel_gpu::op::MOE3GemmFusedCompressed>(
-            ov::OutputVector{hidden_states, router_node->output(0),
+        auto moe_fused = std::make_shared<ov::op::internal::MOECompressed>(
+            ov::OutputVector{hidden_states, router_node->output(0), router_node->output(1),
                 wei_gate, scale_gate, zp_gate, wei_up, scale_up, zp_up, wei_down, scale_down, zp_down,
-                router_node->output(1),
                 sh_wei_gate, sh_scale_gate, sh_zp_gate, sh_wei_up, sh_scale_up, sh_zp_up,
                 sh_wei_down, sh_scale_down, sh_zp_down, sh_gate_gate_wei}, config);
         model_ref = std::make_shared<ov::Model>(moe_fused, ov::ParameterVector{hidden_states});
@@ -410,10 +406,9 @@ TEST_F(TransformationTestsF, FuseMOE3GemmCompressedTest1) {
         config.has_zp = true; config.hidden_size = 2048; config.inter_size = 512;
         config.num_expert = 512; config.group_size = 128; config.top_k = 10;
         config.out_type = ov::element::f16;
-        auto moe_fused = std::make_shared<ov::intel_gpu::op::MOE3GemmFusedCompressed>(
-            ov::OutputVector{hidden_states_reshape, router_node->output(0),
-                wei_gate, scale_gate, zp_gate, wei_up, scale_up, zp_up, wei_down, scale_down, zp_down,
-                router_node->output(1)}, config);
+        auto moe_fused = std::make_shared<ov::op::internal::MOECompressed>(
+            ov::OutputVector{hidden_states_reshape, router_node->output(0), router_node->output(1),
+                wei_gate, scale_gate, zp_gate, wei_up, scale_up, zp_up, wei_down, scale_down, zp_down}, config);
         model_ref = std::make_shared<ov::Model>(moe_fused, ov::ParameterVector{hidden_states});
     }
 }

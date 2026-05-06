@@ -6,7 +6,6 @@
 
 #include <memory>
 
-#include "intel_gpu/op/moe_3gemm_fused_compressed.hpp"
 #include "intel_gpu/op/moe_router_fused.hpp"
 #include "ov_ops/moe_compressed.hpp"
 #include "openvino/core/graph_util.hpp"
@@ -168,11 +167,12 @@ FuseMOE3GemmCompressed::FuseMOE3GemmCompressed() {
         auto router_node = std::make_shared<ov::intel_gpu::op::MoERouterFused>(router_args, router_config);
         ov::copy_runtime_info(moe_compressed, router_node);
 
-        // Create MOE3GemmFusedCompressed with pre-computed topk from router
-        // Input layout: [hidden_states, topk_weights, w0..zp2, topk_indices, (shared_*)?]
+        // Create MOECompressed with pre-computed topk from router
+        // Input layout: [hidden_states, topk_weights, topk_indices, w0..zp2, (shared_*)?]
         OutputVector args{
             hs_reshaped,
             router_node->output(0),  // topk_weights
+            router_node->output(1),  // topk_indices
             pattern_map.at(gate_wei_m),
             pattern_map.at(gate_scale_m),
             pattern_map.at(gate_zp_m),
@@ -182,7 +182,6 @@ FuseMOE3GemmCompressed::FuseMOE3GemmCompressed() {
             pattern_map.at(down_wei_m),
             pattern_map.at(down_scale_m),
             pattern_map.at(down_zp_m),
-            router_node->output(1),  // topk_indices
         };
         if (has_shared_expert) {
             args.push_back(pattern_map.at(shared_gate_wei_m));
@@ -197,7 +196,7 @@ FuseMOE3GemmCompressed::FuseMOE3GemmCompressed() {
             args.push_back(pattern_map.at(shared_gate_gate_wei_m));
         }
 
-        std::shared_ptr<ov::Node> moe_fused = std::make_shared<ov::intel_gpu::op::MOE3GemmFusedCompressed>(args, config);
+        std::shared_ptr<ov::Node> moe_fused = std::make_shared<ov::op::internal::MOECompressed>(args, config);
         ov::copy_runtime_info(moe_compressed, moe_fused);
 
         // If MOECompressed's first input was the original (un-reshaped) hidden state

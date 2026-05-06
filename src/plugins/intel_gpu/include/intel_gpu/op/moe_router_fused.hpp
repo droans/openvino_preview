@@ -12,7 +12,7 @@ namespace ov::intel_gpu::op {
 ///
 /// Performs softmax/sigmoid + top-k + normalization on raw router logits,
 /// producing the normalized routing weights and selected expert indices
-/// consumed by MOE3GemmFusedCompressed.
+/// consumed by MOECompressed.
 ///
 /// Inputs:
 ///   0: router_logits  [num_tokens, num_experts]  — output of the router MatMul

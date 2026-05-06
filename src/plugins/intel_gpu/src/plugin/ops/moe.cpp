@@ -11,7 +11,6 @@
 
 #include "ov_ops/moe_compressed.hpp"
 #include "intel_gpu/plugin/program_builder.hpp"
-#include "intel_gpu/op/moe_3gemm_fused_compressed.hpp"
 #include "intel_gpu/op/moe_router_fused.hpp"
 #include "intel_gpu/plugin/common_utils.hpp"
 #include "intel_gpu/primitives/moe_3gemm_fused_compressed.hpp"
@@ -23,7 +22,6 @@
 namespace ov {
 namespace op {
 namespace internal {
-using MOE3GemmFusedCompressed = ov::intel_gpu::op::MOE3GemmFusedCompressed;
 using MoERouterFused = ov::intel_gpu::op::MoERouterFused;
 }  // namespace internal
 }  // namespace op
@@ -31,34 +29,6 @@ using MoERouterFused = ov::intel_gpu::op::MoERouterFused;
 
 namespace ov::intel_gpu {
 using namespace cldnn;
-
-static void CreateMOE3GemmFusedCompressedOp(ProgramBuilder& p, const std::shared_ptr<ov::intel_gpu::op::MOE3GemmFusedCompressed>& op) {
-    auto inputs = p.GetInputInfo(op);
-    const auto& config = op->get_config();
-    ///   0: hidden_states - input tensor with hidden representations
-    ///   1: topk_weights - [num_tokens, top_k] pre-computed routing weights from MoERouterFused
-    ///   2: w0_weight - expert weights for first projection
-    ///   3: w0_scale
-    ///   4: w0_zp
-    ///   5: w1_weight - expert weights for second projection
-    ///   6: w1_scale
-    ///   7: w1_zp
-    ///   8: w2_weight - expert weights for final projection
-    ///   9: w2_scale
-    ///   10: w2_zp
-    ///   11: topk_indices - [num_tokens, top_k] pre-computed expert indices from MoERouterFused
-    ///
-    ///   Options for shared experts (if config.num_shared_expert > 0, starting at index 12):
-    ///   12-21: shared expert weights/scales/zps
-    ///   21: shared_gate_gate_weight
-    const size_t expected_inputs = config.num_shared_expert > 0 ? 22 : 12;
-    validate_inputs_count(op, {expected_inputs});
-
-    const std::string layerName = layer_type_name_ID(op);
-    const cldnn::moe_3gemm_fused_compressed moe(layerName, inputs, config);
-
-    p.add_primitive(*op, moe);
-}
 
 static void CreateMOECompressedOp(ProgramBuilder& p, const std::shared_ptr<ov::op::internal::MOECompressed>& op) {
     auto inputs = p.GetInputInfo(op);
@@ -68,31 +38,37 @@ static void CreateMOECompressedOp(ProgramBuilder& p, const std::shared_ptr<ov::o
         input_infos.push_back(cldnn::input_info(input));
     }
     if (config.expert_type == ov::op::internal::MOE::Expert_type::GEMM3_SWIGLU) {
-        // Create GEMM3_SWIGLU specific primitives
-        //   0: hidden_states - input tensor with hidden representations
-        //   1: routing_weights - [num_experts, ...] normalized weights for selected experts
-        //      (input to final multiplication)
-        //   2: router_topk_output_indices - [..., topk] indices of selected top-k experts
-        //   3: w0_weight - expert weights for first projection,
-        //   shape [num_experts, inter_size, group_num, group_size]
-        //   4: w0_scale - expert scale for first projection for compressed experts,
-        //   shape [num_experts, inter_size, group_num, 1]
-        //   5: w0_zp - expert zp for first projection for compressed experts,
-        //   shape [num_experts, inter_size, group_num, 1]
-        //   6: w1_weight - expert weights for second projection,
-        //   shape [num_experts, inter_size, group_num, group_size]
-        //   7: w1_scale - expert scale for second projection for compressed experts,
-        //   shape [num_experts, inter_size, group_num, 1]
-        //   8: w1_zp - expert zp for second projection for compressed experts,
-        //   shape [num_experts, inter_size, group_num, 1]
-        //   9: w2_weight - expert weights for final projection,
-        //   shape [num_experts, hidden_size, group_num, group_size]
-        //   10: w2_scale - expert scale for final projection for compressed experts,
-        //   shape [num_experts, hidden_size, group_num, 1]
-        //   11: w2_zp - expert zp for final projection for compressed experts,
-        //   shape [num_experts, hidden_size, group_num, 1]
+        // MOECompressed input layout:
+        //   0: hidden_states
+        //   1: routing_weights (topk_weights from MoERouterFused)
+        //   2: topk_indices (from MoERouterFused)
+        //   3-11: w0_weight, w0_scale, w0_zp, w1_weight, w1_scale, w1_zp, w2_weight, w2_scale, w2_zp
+        //   12-21: shared expert weights (optional)
+        //
+        // Primitive (moe_3gemm_fused_compressed) input layout:
+        //   0: hidden_states
+        //   1: topk_weights
+        //   2-10: w0_weight..w2_zp
+        //   11: topk_indices
+        //   12-21: shared expert weights (optional)
+        const size_t base_inputs = 12;
+        const size_t shared_inputs = config.num_shared_expert > 0 ? 10 : 0;
+        const size_t expected_inputs = base_inputs + shared_inputs;
+        validate_inputs_count(op, {expected_inputs});
 
-        // Use moe_3gemm_fused_compressed to replace it.
+        // Remap: [hs, routing, topk, w0..zp2, shared...] → [hs, routing, w0..zp2, topk, shared...]
+        std::vector<cldnn::input_info> prim_inputs;
+        prim_inputs.push_back(input_infos[0]);   // hidden_states → 0
+        prim_inputs.push_back(input_infos[1]);   // routing_weights → 1 (TOPK_WEIGHTS)
+        for (size_t i = 3; i <= 11; ++i)
+            prim_inputs.push_back(input_infos[i]);  // w0..zp2 → 2..10
+        prim_inputs.push_back(input_infos[2]);   // topk_indices → 11 (TOPK_INDICES)
+        for (size_t i = 12; i < expected_inputs; ++i)
+            prim_inputs.push_back(input_infos[i]);  // shared → 12..21
+
+        const std::string layerName = layer_type_name_ID(op);
+        const cldnn::moe_3gemm_fused_compressed moe(layerName, prim_inputs, config);
+        p.add_primitive(*op, moe);
     } else {
         // Create GEMM2_BIAS_SWIGLU_CLAMP specific primitives
         // input0 : input {#tokens, hidden_size}
@@ -217,7 +193,6 @@ static void CreateMoERouterFusedOp(ProgramBuilder& p, const std::shared_ptr<ov::
     p.add_primitive(*op, cldnn::moe_router_fused(layerName, inputs, config));
 }
 
-REGISTER_FACTORY_IMPL(internal, MOE3GemmFusedCompressed);
 REGISTER_FACTORY_IMPL(internal, MOECompressed);
 REGISTER_FACTORY_IMPL(internal, MoERouterFused);
 
