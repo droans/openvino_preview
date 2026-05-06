@@ -17,7 +17,10 @@ GPU_DEFINE_PRIMITIVE_TYPE_ID(moe_router_fused)
 layout moe_router_fused_inst::calc_output_layout(const moe_router_fused_node& /* node */, const kernel_impl_params& impl_param) {
     auto desc = impl_param.typed_desc<moe_router_fused>();
     auto input_layout = impl_param.get_input_layout(0);
-    size_t num_tokens = input_layout.get_shape()[0];
+    auto shape = input_layout.get_shape();
+    size_t num_tokens = shape[0];
+    if (shape.size() >= 3)
+        num_tokens = shape[0] * shape[1];
     size_t top_k = desc->_config.top_k;
     return layout(ov::Shape{num_tokens, top_k}, input_layout.data_type, format::bfyx);
 }
@@ -30,7 +33,11 @@ std::vector<layout> moe_router_fused_inst::calc_output_layouts(const moe_router_
     size_t top_k = desc->_config.top_k;
 
     ov::PartialShape out_shape;
-    if (input_pshape.rank().is_static() && input_pshape.rank().get_length() >= 1) {
+    if (input_pshape.rank().is_static() && input_pshape.rank().get_length() >= 3) {
+        // 3D input [batch, seq_len, num_experts] -> num_tokens = batch * seq_len
+        auto num_tokens = input_pshape[0] * input_pshape[1];
+        out_shape = ov::PartialShape{num_tokens, static_cast<int64_t>(top_k)};
+    } else if (input_pshape.rank().is_static() && input_pshape.rank().get_length() >= 1) {
         out_shape = ov::PartialShape{input_pshape[0], static_cast<int64_t>(top_k)};
     } else {
         out_shape = ov::PartialShape::dynamic(2);

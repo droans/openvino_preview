@@ -96,7 +96,10 @@ public:
         // Determine token count from input layout
         auto input_mem = instance.input_memory_ptr(0);
         auto input_layout = instance.dependencies()[0].first->get_impl_params()->get_output_layout(instance.dependencies()[0].second);
-        size_t token_num = input_layout.get_shape()[0];
+        auto input_shape = input_layout.get_shape();
+        size_t token_num = input_shape[0];
+        if (input_shape.size() >= 3)
+            token_num = input_shape[0] * input_shape[1];
         size_t lws_size = config.num_expert;
 
         // Select routing stage and build inputs
