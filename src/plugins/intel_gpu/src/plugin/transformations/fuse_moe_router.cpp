@@ -159,8 +159,8 @@ FuseMoERouter::FuseMoERouter() {
         // Replace routing inputs of MOECompressed with MoERouterFused outputs
         // Input 1: routing_weights (topk_weights)
         // Input 2: topk_indices
-        moe_compressed->input(1).replace_source_output(router_node->output(0));
-        moe_compressed->input(2).replace_source_output(router_node->output(1));
+        ov::replace_output_update_name(moe_compressed->input(1).get_source_output(), router_node->output(0));
+        ov::replace_output_update_name(moe_compressed->input(2).get_source_output(), router_node->output(1));
 
         return true;
     };
