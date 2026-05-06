@@ -11,21 +11,19 @@
 
 namespace ov::intel_gpu::ocl {
 
-#define MOE_INTERNAL_BUFFER_TOPK_IDX                       0   // topk_idx
-#define MOE_INTERNAL_BUFFER_TOPK_WEIGHTS                   1   // topk_weights
-#define MOE_INTERNAL_BUFFER_UP_OUTPUT                      2   // up output
-#define MOE_INTERNAL_BUFFER_DOWN_OUTPUT                    3   // down output
-#define MOE_INTERNAL_BUFFER_GATE_UP_INPUT                  4   // gather input tensor
-#define MOE_INTERNAL_BUFFER_ROUTING_WEIGHTS                5   // routing_weights
-#define MOE_INTERNAL_BUFFER_GATE_OUTPUT                    6   // gate output
-#define MOE_INTERNAL_BUFFER_EXPERT_MASK_BATCH              7   // expert_mask_batch
-#define MOE_INTERNAL_BUFFER_EXPERT_MASK_TOPK               8   // expert_mask_topk
-#define MOE_INTERNAL_BUFFER_ACTIVATED_EXPERT_IDS           9   // experts_ids for each activated expert
-#define MOE_INTERNAL_BUFFER_TOKEN_START_OFFSET_PER_EXPERT  10  // token start offset idx (input gather tokens) for each activated expert
-#define MOE_INTERNAL_BUFFER_TOKEN_LEN_PER_ACTIVATED_EXPERT 11  // token len (input gather tokens) for each activated expert
-#define MOE_INTERNAL_BUFFER_TOKEN_IDX_PER_EXPERT           12  // token idx per expert
-#define MOE_INTERNAL_BUFFER_ACTUAL_USED_EXPERT_NUM         13  // num_actual_used_experts
-#define MOE_INTERNAL_BUFFER_GROUPED_OFFSETS                14  // int32_t cumulative end-offsets per expert for OneDNN grouped GEMM
+#define MOE_INTERNAL_BUFFER_UP_OUTPUT                      0   // up output
+#define MOE_INTERNAL_BUFFER_DOWN_OUTPUT                    1   // down output
+#define MOE_INTERNAL_BUFFER_GATE_UP_INPUT                  2   // gather input tensor
+#define MOE_INTERNAL_BUFFER_ROUTING_WEIGHTS                3   // routing_weights
+#define MOE_INTERNAL_BUFFER_GATE_OUTPUT                    4   // gate output
+#define MOE_INTERNAL_BUFFER_EXPERT_MASK_BATCH              5   // expert_mask_batch
+#define MOE_INTERNAL_BUFFER_EXPERT_MASK_TOPK               6   // expert_mask_topk
+#define MOE_INTERNAL_BUFFER_ACTIVATED_EXPERT_IDS           7   // experts_ids for each activated expert
+#define MOE_INTERNAL_BUFFER_TOKEN_START_OFFSET_PER_EXPERT  8   // token start offset idx (input gather tokens) for each activated expert
+#define MOE_INTERNAL_BUFFER_TOKEN_LEN_PER_ACTIVATED_EXPERT 9   // token len (input gather tokens) for each activated expert
+#define MOE_INTERNAL_BUFFER_TOKEN_IDX_PER_EXPERT           10  // token idx per expert
+#define MOE_INTERNAL_BUFFER_ACTUAL_USED_EXPERT_NUM         11  // num_actual_used_experts
+#define MOE_INTERNAL_BUFFER_GROUPED_OFFSETS                12  // int32_t cumulative end-offsets per expert for OneDNN grouped GEMM
 
 #define ENABLE_MOE_MICRO_GEMM_POST_PROC_SILU_MUL 1
 

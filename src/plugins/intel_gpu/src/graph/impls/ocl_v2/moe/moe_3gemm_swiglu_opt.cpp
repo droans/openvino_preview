@@ -1236,59 +1236,54 @@ public:
         bool has_shared_expert = params.input_layouts.size() > static_cast<size_t>(MOE3GemmInputIndex::SHARED_GATE_WEIGHT);
 
         std::vector<BufferDescriptor> internal_buffers;
-        // softmax+topk
-        layout layout_topk_id(ov::Shape{token_num, max_topk}, data_types::u32, cldnn::format::bfyx);
-        layout layout_topk_weights(ov::Shape{token_num, max_topk + (has_shared_expert ? 1 : 0)}, data_type, cldnn::format::bfyx);
-        internal_buffers.emplace_back(layout_topk_id, true);       // 0: topk_id
-        internal_buffers.emplace_back(layout_topk_weights, true);  // 1: topk_weights
 
         // To support micro_gemm, prefill need to allocate max_topk * token_num for input data of micro_gemm
         auto max_batch = has_shared_expert ? (max_topk + 1) * token_num : max_topk * token_num;
         layout layout_gateup_out(ov::Shape{max_batch, static_cast<size_t>(config.inter_size)}, data_type, cldnn::format::bfyx);
         layout layout_down_out(ov::Shape{max_batch, static_cast<size_t>(config.hidden_size)}, data_type, cldnn::format::bfyx);
-        internal_buffers.emplace_back(layout_gateup_out, false);  // 2: up output (GPU-only)
-        internal_buffers.emplace_back(layout_down_out, false);    // 3: down output (GPU-only)
+        internal_buffers.emplace_back(layout_gateup_out, false);  // 0: up output (GPU-only)
+        internal_buffers.emplace_back(layout_down_out, false);    // 1: down output (GPU-only)
         // onednn: scratch.x, scratch.routing_weights = gather(x, ...)
         //         scratch.up = up(scratch.x)
         //         scratch.gate = gate(scratch.x) * scratch.up
         //         scratch.y = down(scratch.gate) * routing_weights
-        internal_buffers.emplace_back(layout_down_out, false);  // 4: up/gate input, scratch.x has same layout with down output (GPU-only)
+        internal_buffers.emplace_back(layout_down_out, false);  // 2: up/gate input, scratch.x has same layout with down output (GPU-only)
         layout routing_layout(ov::Shape{max_batch}, data_type, cldnn::format::bfyx);
-        internal_buffers.emplace_back(routing_layout, true);      // 5: routing_weights
-        internal_buffers.emplace_back(layout_gateup_out, false);  // 6: gate output, scratch.gate has same layout with up (GPU-only)
+        internal_buffers.emplace_back(routing_layout, true);      // 3: routing_weights
+        internal_buffers.emplace_back(layout_gateup_out, false);  // 4: gate output, scratch.gate has same layout with up (GPU-only)
 
         // expert masks for gpu
         layout index_layout(ov::Shape{expert_num, token_num}, ov::element::i32, cldnn::format::bfyx);
-        internal_buffers.emplace_back(index_layout, true);  // 7: expert_mask_batch
-        internal_buffers.emplace_back(index_layout, true);  // 8: expert_mask_topk
+        internal_buffers.emplace_back(index_layout, true);  // 5: expert_mask_batch
+        internal_buffers.emplace_back(index_layout, true);  // 6: expert_mask_topk
 
         GPU_DEBUG_TRACE_DETAIL << "[DEBUG] get_internal_buffer_descs(): use_micro_gemm_prefill=" << use_micro_gemm_prefill
                                << ", use_grouped_gemm_prefill=" << use_grouped_gemm_prefill << std::endl;
         // for micro_gemm
         if (use_micro_gemm_prefill && token_num > 1) {
             layout layout_micro_gemm(ov::Shape{expert_num, token_num}, ov::element::i32, cldnn::format::bfyx);
-            internal_buffers.emplace_back(layout_micro_gemm, true);  // 9: experts_ids for each activated expert
-            internal_buffers.emplace_back(layout_micro_gemm, true);  // 10: token start offset idx (input gather tokens) for each activated expert
-            internal_buffers.emplace_back(layout_micro_gemm, true);  // 11: token len (input gather tokens) for each activated expert
+            internal_buffers.emplace_back(layout_micro_gemm, true);  // 7: experts_ids for each activated expert
+            internal_buffers.emplace_back(layout_micro_gemm, true);  // 8: token start offset idx (input gather tokens) for each activated expert
+            internal_buffers.emplace_back(layout_micro_gemm, true);  // 9: token len (input gather tokens) for each activated expert
             layout layout_token_idx(ov::Shape{token_num * max_topk}, ov::element::i32, cldnn::format::bfyx);
-            internal_buffers.emplace_back(layout_token_idx, true);  // 12: token idx per expert
+            internal_buffers.emplace_back(layout_token_idx, true);  // 10: token idx per expert
             layout layout_actual_used_expert_num(ov::Shape{1}, ov::element::i32, cldnn::format::bfyx);
-            internal_buffers.emplace_back(layout_actual_used_expert_num, false);  // 13: actual_used_expert_num
+            internal_buffers.emplace_back(layout_actual_used_expert_num, false);  // 11: actual_used_expert_num
         }
-        // for grouped_gemm: shared metadata buffers (9-13) + int64_t expert-row-offsets (14)
+        // for grouped_gemm: shared metadata buffers (7-11) + int32_t expert-row-offsets (12)
         if (use_grouped_gemm_prefill && token_num > 1) {
             layout layout_meta(ov::Shape{expert_num, token_num}, ov::element::i32, cldnn::format::bfyx);
-            internal_buffers.emplace_back(layout_meta, true);  // 9: activated expert ids
-            internal_buffers.emplace_back(layout_meta, true);  // 10: token start offset per activated expert
-            internal_buffers.emplace_back(layout_meta, true);  // 11: token len per activated expert
+            internal_buffers.emplace_back(layout_meta, true);  // 7: activated expert ids
+            internal_buffers.emplace_back(layout_meta, true);  // 8: token start offset per activated expert
+            internal_buffers.emplace_back(layout_meta, true);  // 9: token len per activated expert
             layout layout_token_idx(ov::Shape{token_num * max_topk}, ov::element::i32, cldnn::format::bfyx);
-            internal_buffers.emplace_back(layout_token_idx, true);  // 12: flat token idx per expert (for gather)
+            internal_buffers.emplace_back(layout_token_idx, true);  // 10: flat token idx per expert (for gather)
             layout layout_actual_used_expert_num(ov::Shape{1}, ov::element::i32, cldnn::format::bfyx);
-            internal_buffers.emplace_back(layout_actual_used_expert_num, false);  // 13: actual_used_expert_num
+            internal_buffers.emplace_back(layout_actual_used_expert_num, false);  // 11: actual_used_expert_num
             // int32_t end-offsets per expert for OneDNN grouped memory descriptor
             // offsets[e] = sum(n_0..n_e), the exclusive end index of expert e in the flat buffer
             layout layout_grouped_offsets(ov::Shape{expert_num}, ov::element::i32, cldnn::format::bfyx);
-            internal_buffers.emplace_back(layout_grouped_offsets, true);  // 14: grouped end-offsets
+            internal_buffers.emplace_back(layout_grouped_offsets, true);  // 12: grouped end-offsets
         }
         return internal_buffers;
     }
