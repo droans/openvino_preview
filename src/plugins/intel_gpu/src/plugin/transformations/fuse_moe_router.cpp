@@ -2,11 +2,11 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-#include "fuse_moe_3gemm_compressed.hpp"
+#include "fuse_moe_router.hpp"
 
 #include <memory>
 
-#include "intel_gpu/op/moe_3gemm_fused_compressed.hpp"
+#include "intel_gpu/op/moe_router_fused.hpp"
 #include "ov_ops/moe_compressed.hpp"
 #include "openvino/core/graph_util.hpp"
 #include "openvino/core/node.hpp"
@@ -19,7 +19,6 @@
 #include "openvino/op/matmul.hpp"
 #include "openvino/op/reduce_sum.hpp"
 #include "openvino/op/reshape.hpp"
-#include "openvino/op/shape_of.hpp"
 #include "openvino/op/sigmoid.hpp"
 #include "openvino/op/slice.hpp"
 #include "openvino/op/softmax.hpp"
@@ -33,10 +32,9 @@
 #include "openvino/pass/pattern/op/pattern.hpp"
 #include "openvino/pass/pattern/op/wrap_type.hpp"
 #include "openvino/util/pp.hpp"
-#include "ov_ops/moe_compressed.hpp"
 
 namespace ov::intel_gpu {
-FuseMOE3GemmCompressed::FuseMOE3GemmCompressed() {
+FuseMoERouter::FuseMoERouter() {
     using namespace ov::pass::pattern;
     using namespace ov::pass;
 #define ANY any_input()
@@ -142,70 +140,32 @@ FuseMOE3GemmCompressed::FuseMOE3GemmCompressed() {
         }
 
         auto config = moe_compressed->get_config();
-        bool has_shared_expert = pattern_map.count(shared_gate_wei_m) > 0;
-        if (!has_shared_expert) {
-            config.num_shared_expert = 0;
-        }
-        // When Optional<Reshape> is absent, the optional pattern is NOT in the map.
-        auto hs_reshaped = pattern_map.count(hidden_state_reshape)
-            ? pattern_map.at(hidden_state_reshape)
-            : pattern_map.at(hidden_state_m);
-        OutputVector args{
-            hs_reshaped,
-            pattern_map.at(matmul),
-            pattern_map.at(gate_wei_m),
-            pattern_map.at(gate_scale_m),
-            pattern_map.at(gate_zp_m),
-            pattern_map.at(up_wei_m),
-            pattern_map.at(up_scale_m),
-            pattern_map.at(up_zp_m),
-            pattern_map.at(down_wei_m),
-            pattern_map.at(down_scale_m),
-            pattern_map.at(down_zp_m),
-        };
+
+        // Create MoERouterFused op for routing (softmax/sigmoid + topk + normalize)
+        ov::intel_gpu::op::MoERouterFused::Config router_config;
+        router_config.num_expert = config.num_expert;
+        router_config.top_k = config.top_k;
+
+        OutputVector router_args{pattern_map.at(matmul)};
         if (pattern_map.count(sig_routing_bias)) {
-            args.push_back(pattern_map.at(sig_routing_bias));
-            args.push_back(pattern_map.at(sig_eps_value));
-            config.routing_type = ov::op::internal::MOECompressed::RoutingType::SIGMOID_BIAS;
-        } else if (has_shared_expert) {
-            // SOFTMAX + shared expert: insert dummy placeholders at indices 11-12
-            // so that shared expert inputs always start at index 13.
-            auto dummy_bias = ov::op::v0::Constant::create(ov::element::f16, ov::Shape{1}, {0.0f});
-            auto dummy_eps = ov::op::v0::Constant::create(ov::element::f16, ov::Shape{1}, {0.0f});
-            args.push_back(dummy_bias);
-            args.push_back(dummy_eps);
-        }
-        if (has_shared_expert) {
-            args.push_back(pattern_map.at(shared_gate_wei_m));
-            args.push_back(pattern_map.at(shared_gate_scale_m));
-            args.push_back(pattern_map.at(shared_gate_zp_m));
-            args.push_back(pattern_map.at(shared_up_wei_m));
-            args.push_back(pattern_map.at(shared_up_scale_m));
-            args.push_back(pattern_map.at(shared_up_zp_m));
-            args.push_back(pattern_map.at(shared_down_wei_m));
-            args.push_back(pattern_map.at(shared_down_scale_m));
-            args.push_back(pattern_map.at(shared_down_zp_m));
-            args.push_back(pattern_map.at(shared_gate_gate_wei_m));
+            router_args.push_back(pattern_map.at(sig_routing_bias));
+            router_args.push_back(pattern_map.at(sig_eps_value));
+            router_config.routing_type = ov::intel_gpu::op::MoERouterFused::RoutingType::SIGMOID_BIAS;
         }
 
-        std::shared_ptr<ov::Node> moe_router_fused = std::make_shared<ov::intel_gpu::op::MOE3GemmFusedCompressed>(args, config);
-        ov::copy_runtime_info(moe_compressed, moe_router_fused);
+        auto router_node = std::make_shared<ov::intel_gpu::op::MoERouterFused>(router_args, router_config);
+        ov::copy_runtime_info(moe_compressed, router_node);
 
-        // If MOECompressed's first input was the original (un-reshaped) hidden state
-        // but the fused op works on the flattened 2D input, reshape the output back.
-        if (moe_compressed->input_value(0) != hs_reshaped) {
-            auto hidden_state_shape = std::make_shared<ov::op::v3::ShapeOf>(pattern_map.at(hidden_state_m));
-            moe_router_fused = std::make_shared<ov::op::v1::Reshape>(moe_router_fused, hidden_state_shape, false);
-            ov::copy_runtime_info(moe_compressed, {hidden_state_shape, moe_router_fused});
-        }
-
-        moe_router_fused->set_friendly_name(moe_compressed->get_friendly_name());
-        ov::replace_node(moe_compressed, moe_router_fused);
+        // Replace routing inputs of MOECompressed with MoERouterFused outputs
+        // Input 1: routing_weights (topk_weights)
+        // Input 2: topk_indices
+        ov::replace_output_update_name(moe_compressed->input(1).get_source_output(), router_node->output(0));
+        ov::replace_output_update_name(moe_compressed->input(2).get_source_output(), router_node->output(1));
 
         return true;
     };
 
-    auto m = std::make_shared<Matcher>(moe_compressed_m, "FuseMOE3GemmCompressed");
+    auto m = std::make_shared<Matcher>(moe_compressed_m, "FuseMoERouter");
     this->register_matcher(m, callback);
 }
 

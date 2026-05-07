@@ -90,7 +90,7 @@
 #include "plugin/transformations/fc_convert_fusion.hpp"
 #include "plugin/transformations/fc_horizontal_fusion.hpp"
 #include "plugin/transformations/fuse_gated_mlp.hpp"
-#include "plugin/transformations/fuse_moe_3gemm_compressed.hpp"
+#include "plugin/transformations/fuse_moe_router.hpp"
 #include "plugin/transformations/increase_position_ids_precision.hpp"
 #include "plugin/transformations/indirect_kv_cache.hpp"
 #include "plugin/transformations/keep_moe_3gemm_const_precision.hpp"
@@ -563,7 +563,7 @@ void TransformationsPipeline::apply(std::shared_ptr<ov::Model> func) {
                 const bool has_batch_dim = !is_pa;
                 manager.register_pass<ov::pass::MoeOpFusion>(has_batch_dim);
                 manager.register_pass<ov::intel_gpu::FuseMOESharedExpert>();
-                manager.register_pass<ov::intel_gpu::FuseMOE3GemmCompressed>();
+                manager.register_pass<ov::intel_gpu::FuseMoERouter>();
             }
         }
         manager.register_pass<ov::pass::GatedDeltaNetFusion>();
